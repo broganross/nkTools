@@ -1,3 +1,7 @@
+/DrivenDilate.os
+/.settings/language.settings.xml
+/.project
+/.cproject
 # Compiled Object files
 *.slo
 *.lo

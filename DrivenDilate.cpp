@@ -141,6 +141,7 @@ public:
 			int Y = tile.y();
 			for (X = tile.x(); X < tile.r(); X++)
 				TO[X] = tile[z][Y][X];
+			// get vertical values
 			for (X=tile.x(); X < tile.r(); X++){
 				float mval = tile[mchan][y][X];
 				int start = y - (v_size*mval);
@@ -160,6 +161,23 @@ public:
 					}
 				}
 			}
+			// get horizontal values
+/*			if (h_size){
+				for (X=tile.x(); X < tile.r(); X++){
+					float mval = tile[mchan][y][X];
+					int np = X - (int)(mval);
+					int pp = X + (int)(mval);
+					float v = TO[X];
+					for (int cx=np; cx < pp; cx++){
+						if (h_do_min){
+							v = MIN(v, TO[cx]);
+						} else {
+							v = MAX(v, TO[cx]);
+						}
+					}
+					TO[X] = v;
+				}
+			}*/
 			// pad the ends that go outside the source:
 			for (X = x; X < tile.x(); X++)
 				TO[X] = TO[tile.x()];
@@ -228,6 +246,35 @@ public:
 			get_vpass(y, rm, rx, cl, in);
 			if (aborted())
 				return;
+
+			Channel mchan = maskChan[0];
+			if (!intersect(in.writable_channels(), mchan))
+				mchan = Chan_Black;
+
+			const float* DRIVEN = in[mchan];
+			foreach (z, cl){
+				if (z == mchan)
+					continue;
+				float* TO = out.writable(z);
+				const float* FROM = in[z];
+				int X;
+				for (X=x; X < r; X++){
+					float mval = DRIVEN[X];
+					int np = (X - (int)(h_size * mval));
+					int pp = (X + (int)(h_size * mval));
+					std::cout << y << " " << X << std::endl;
+					float v = FROM[X];
+					for (int cx=np; cx < pp; cx++){
+						if (h_do_min){
+							v = MIN(v, FROM[cx]);
+						} else {
+							v = MAX(v, FROM[cx]);
+						}
+					}
+					TO[X] = v;
+				}
+			}
+/*
 			Channel mchan = maskChan[0];
 			if (!intersect(in.writable_channels(), mchan))
 				mchan = Chan_Black;
@@ -266,6 +313,7 @@ public:
 			    	TO[X] = v;
 			    }
 			}
+*/
 		} else {
 			get_vpass(y, x, r, cl, out);
 			if (aborted())

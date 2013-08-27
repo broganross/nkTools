@@ -4,18 +4,25 @@
 # This is free software; see the source for copying conditions.  There is NO
 # warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # End Compiler Info Output
-NDKDIR ?= /usr/local/Nuke7.0v6# Change this to Nuke's location
+
+# Change this to Nuke's location
+NDKDIR ?= /usr/local/Nuke7.0v6
 MYCXX ?= g++
 LINK ?= g++
 CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -fPIC -msse 
 LINKFLAGS ?= -L$(NDKDIR) 
 LIBS ?= -lDDImage
 LINKFLAGS += -shared
-all: DrivenDilate.so
+VPATH = src
+BUILDDIR = ./build
+
+all: DrivenDilate.so DisparityDistort.so
 .PRECIOUS : %.os
-%.os: %.cpp
+$(BUILDDIR)/%.os: %.cpp
 	$(MYCXX) $(CXXFLAGS) -o $(@) $<
-%.so: %.os
-	$(LINK) $(LINKFLAGS) $(LIBS) -o ~/.nuke/$(@) $<
+
+%.so: $(BUILDDIR)/%.os
+	$(LINK) $(LINKFLAGS) $(LIBS) -o ./build/nix/$@ $<
+
 clean:
-	rm -rf *.os DepthErode.so stdRamp.so EdgeErode.so PointColor.so depthDistort.so Normalise.so
+	rm -rf ./src/*.os ./build/*.so

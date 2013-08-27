@@ -266,7 +266,6 @@ public:
 
 };
 
-//static Op* build(Node* node) { return new DrivenDilate(node); }
 static Op* build(Node* node) { return new NukeWrapper(new DrivenDilate(node)); }
 const Op::Description DrivenDilate::d(CLASS, "Filter/DrivenDilate", build);
 

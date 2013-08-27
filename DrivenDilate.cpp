@@ -1,4 +1,4 @@
-/* DrivenDilate.C
+/* DrivenDilate.cpp
 Based on The Foundry's code for a Dilate.cpp
 
 The MIT License (MIT)
@@ -23,12 +23,10 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
- static const char* CLASS = "DrivenDilate";
+static const char* CLASS = "DrivenDilate";
 
 static const char* HELP =
-  "Box Morphological Filter\n\n"
-  "Maximum (or minimum) of a rectangular area around each pixel. This "
-  "can be used to grow or shrink mattes.";
+  "Box Morphological Filter driven by the values of another channel\n\n";
 
 #include "DDImage/NukeWrapper.h"
 #include "DDImage/Row.h"
@@ -44,7 +42,6 @@ using namespace DD::Image;
 
 class DrivenDilate : public Iop
 {
-  // Where the knob stores it's values:
     double w, h;
     int bboxAdjust;
     float _maxValue;
@@ -75,8 +72,11 @@ public:
     void knobs(Knob_Callback f)
     {
     	Input_Channel_knob( f, maskChan, 1, 0, "maskChannel", "Mask Channel");
+    	Tooltip(f, "The values in this channel are used as multipliers to the size to determine the final erode amount.");
     	WH_knob(f, &w, IRange(-100, 100), "size");
+    	Tooltip(f, "Controls the base size of the erode before using the multiplying channel.");
     	Int_knob(f, &bboxAdjust, "bbox");
+    	Tooltip(f, "Manual control for extending the bounding box, if needed.");
     }
 
     static const Op::Description d;
@@ -111,7 +111,7 @@ public:
 		m += maskChan[0];
 	}
 
-  // Find the minimum of all the input rows:
+	// runs the vertical pass on the tile
 	void get_vpass(int y, int x, int r, ChannelMask channels, Row& out)
 	{
 		if (!v_size) {
@@ -140,7 +140,7 @@ public:
 			int X;
 			int Y = tile.y();
 			for (X = tile.x(); X < tile.r(); X++)
-				TO[X] = tile[z][Y][X];
+				TO[X] = tile[z][y][X];
 			// get vertical values
 			for (X=tile.x(); X < tile.r(); X++){
 				float mval = tile[mchan][y][X];
@@ -161,23 +161,6 @@ public:
 					}
 				}
 			}
-			// get horizontal values
-/*			if (h_size){
-				for (X=tile.x(); X < tile.r(); X++){
-					float mval = tile[mchan][y][X];
-					int np = X - (int)(mval);
-					int pp = X + (int)(mval);
-					float v = TO[X];
-					for (int cx=np; cx < pp; cx++){
-						if (h_do_min){
-							v = MIN(v, TO[cx]);
-						} else {
-							v = MAX(v, TO[cx]);
-						}
-					}
-					TO[X] = v;
-				}
-			}*/
 			// pad the ends that go outside the source:
 			for (X = x; X < tile.x(); X++)
 				TO[X] = TO[tile.x()];
@@ -191,6 +174,7 @@ public:
 	}
 
 	/*! Finds the maximum and minimum pixel value for the frame in the mask channel
+	 * This is then used to determine the maximum size of the bbox and vertical tile
 	 */
 	void findMaxMin(){
 		Guard guard(_lock);
@@ -253,7 +237,7 @@ public:
 
 			const float* DRIVEN = in[mchan];
 			foreach (z, cl){
-				if (z == mchan)
+				if (z == maskChan[0])
 					continue;
 				float* TO = out.writable(z);
 				const float* FROM = in[z];
@@ -262,7 +246,6 @@ public:
 					float mval = DRIVEN[X];
 					int np = (X - (int)(h_size * mval));
 					int pp = (X + (int)(h_size * mval));
-					std::cout << y << " " << X << std::endl;
 					float v = FROM[X];
 					for (int cx=np; cx < pp; cx++){
 						if (h_do_min){
@@ -274,125 +257,17 @@ public:
 					TO[X] = v;
 				}
 			}
-/*
-			Channel mchan = maskChan[0];
-			if (!intersect(in.writable_channels(), mchan))
-				mchan = Chan_Black;
-			const float* DRIVEN = in[mchan];
-			foreach(z, cl){
-				if (z == mchan)
-					continue;
-				float* TO = out.writable(z);
-				int X;
-				const float* FROM = in[z];
-				float mv = DRIVEN[x];
-				int length = (int)((h_size * mv) * 2);
-				float v = FROM[x + (int)(h_size * mv)];
-				for (X=x; X < r; X++){
-					mv = DRIVEN[X];
-//					length = (h_size * mv) * 2;
-					int p = X + (int)(h_size*mv);
-					if (h_do_min){
-						v = MIN(v, FROM[p]);
-					} else {
-						v = MAX(v, FROM[p]);
-					}
-					TO[X] = v;
-				}
-			    X = in.getRight();
-			    mv = DRIVEN[X];
-			    v = FROM[X - 1 - (int)(h_size * mv)];
-			    for (; X > x; X--) {
-			    	mv = DRIVEN[X];
-			    	int p = X - (int)(h_size*mv);
-			    	if (h_do_min){
-			    		v = MIN(v, FROM[p]);
-			    	} else {
-			    		v = MAX(v, FROM[p]);
-			    	}
-			    	TO[X] = v;
-			    }
-			}
-*/
 		} else {
 			get_vpass(y, x, r, cl, out);
 			if (aborted())
 				return;
 		}
-/*		if (h_size) {
-			Row in(x - (h_size*_maxValue), r + (h_size*_maxValue));
-			get_vpass(y, x - (h_size*_maxValue), r + (h_size*_maxValue), cl, in);
-			if (aborted())
-				return;
-			const int length = 2 * h_size;
-			foreach (z, channels) {
-				const float* mchan = in[maskChan[0]];
-				const float* FROM = in[z];
-				float* TO = out.writable(z);
-				float mv = mchan[x] * h_size;
-				float v = FROM[x + h_size];
-				if (h_do_min) {
-					int X;
-					for (X = x; X < r; X++) {
-						if ((X - x) % length)
-							v = MIN(v, FROM[X + h_size]);
-						else
-							v = FROM[X + h_size];
-						TO[X] = v;
-					}
-					// we need to round up start to next multiple of length:
-					X = (r - x) % length;
-					if (X < 0)
-						X = -X;
-					X = X ? r + length - X : r;
-					v = FROM[X - 1 - h_size];
-					while (X > r) { --X;
-                          v = MIN(v, FROM[X - 1 - h_size]); }
-					for (; X > x; X--) {
-						if ((X - x) % length)
-							v = MIN(v, FROM[X - 1 - h_size]);
-						else
-							v = FROM[X - 1 - h_size];
-						TO[X - 1] = MIN(TO[X - 1], v);
-					}
-				}
-				else {
-					int X;
-					for (X = x; X < r; X++) {
-						if ((X - x) % length)
-							v = MAX(v, FROM[X + h_size]);
-						else
-							v = FROM[X + h_size];
-						TO[X] = v;
-					}
-					// we need to round up start to next multiple of length:
-					X = (r - x) % length;
-					if (X < 0)
-						X = -X;
-					X = X ? r + length - X : r;
-					v = FROM[X - 1 - h_size];
-					while (X > r) { --X;
-								  v = MAX(v, FROM[X - 1 - h_size]); }
-					for (; X > x; X--) {
-						if ((X - x) % length)
-							v = MAX(v, FROM[X - 1 - h_size]);
-						else
-							v = FROM[X - 1 - h_size];
-						TO[X - 1] = MAX(TO[X - 1], v);
-					}
-				}
-			}
-    }
-	else {
-		get_vpass(y, x, r, cl, out);
-	}
-	*/
 }
-
 
 };
 
-static Op* construct(Node* node) { return new NukeWrapper(new DrivenDilate(node)); }
-const Op::Description DrivenDilate::d(CLASS, construct);
+//static Op* build(Node* node) { return new DrivenDilate(node); }
+static Op* build(Node* node) { return new NukeWrapper(new DrivenDilate(node)); }
+const Op::Description DrivenDilate::d(CLASS, "Filter/DrivenDilate", build);
 
-// end of DrivenDilate.C
+// end of DrivenDilate.cpp

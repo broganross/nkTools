@@ -6,7 +6,7 @@
 # End Compiler Info Output
 
 # Change this to Nuke's location
-NDKDIR ?= /usr/local/Nuke7.0v6
+NDKDIR ?= /usr/local/Nuke7.0v8
 MYCXX ?= g++
 LINK ?= g++
 CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -fPIC -msse 

@@ -42,7 +42,7 @@ class DisparityDistort : public Iop
 	float _minValue;
 	bool _firstTime;
 	Lock _lock;
-	Channel dispChans[2];
+	Channel dispChans[4];
 
 public:
 	int maximum_inputs() const {return 1; }
@@ -54,7 +54,9 @@ public:
 		_minValue = 1.0;
 		_firstTime = true;
 		dispChans[0] = Chan_Stereo_Disp_Left_X;
-		dispChans[1] = Chan_Stereo_Disp_Right_X;
+		dispChans[1] = Chan_Stereo_Disp_Left_Y;
+		dispChans[2] = Chan_Stereo_Disp_Right_X;
+		dispChans[3] = Chan_Stereo_Disp_Right_Y;
 	}
 
 	const char* Class() const {return CLASS; }
@@ -65,6 +67,8 @@ public:
 		_firstTime = true;
 	}
 
+	// finds the maximum/minimum values in the disparity channel
+	// @todo: adjust to get x max/min and y max/min
 	void findMaxMin(){
 		Guard guard(_lock);
 		if (_firstTime){
@@ -101,7 +105,7 @@ public:
 	}
 
 	void _validate(bool for_real){
-		std::cout << "_validate" << std::endl;
+		std::cout << "validate" << std::endl;
 		copy_info();
 		float mst = std::max(fabs(_maxValue), fabs(_minValue));
 		info_.y(info_.y() - mst);
@@ -109,6 +113,7 @@ public:
 		info_.x(info_.x() - mst);
 		info_.r(info_.r() + mst);
 		set_out_channels(Mask_All);
+		std::cout << info_.x() << " " << info_.r() << std::endl;
 	}
 
 	void in_channels(int, ChannelSet &m) const {
@@ -118,7 +123,7 @@ public:
 	}
 
 	void _request(int x, int y, int r, int t, ChannelMask channels, int count){
-		std::cout << "_request" << std::endl;
+		std::cout << "request" << std::endl;
 		ChannelSet cl(channels);
 		in_channels(0, cl);
 		float mst = std::max(fabs(_maxValue), fabs(_minValue));
@@ -127,54 +132,53 @@ public:
 		y -= mst;
 		t += mst;
 		input0().request(x, y, r, t, cl, count);
+		std::cout << x << " " << y << " " << r << " " << t << std::endl;
 	}
 
 	void engine(int y, int x, int r, ChannelMask channels, Row& out)
 	{
-		std::cout << "engine" << std::endl;
+		ChannelSet cl(channels);
+		in_channels(0, cl);
 		findMaxMin();
 		if (aborted())
 			return;
-		std::cout << "max " << _maxValue << std::endl;
-		std::cout << "min " << _minValue << std::endl;
-		Row in(x, r);
+		float mst = std::max(fabs(_maxValue), fabs(_minValue));
+		Row in(info_.x()-mst, info_.r()-mst);
 		if (aborted())
 			return;
 
-		foreach(z, channels){
-			float* to = out.writable(z);
-			for (int X=x; X<r; X++){
-				to[X] = 1.0;
+		in.get(input0(), y, in.getLeft(), in.getRight(), cl);
 
-			}
+		for (int i=0; i < 4; i++)
+		{
+			if (!intersect(in.writable_channels(), dispChans[i]))
+				dispChans[i] = Chan_Black;
 		}
-/*
-		float mst = std::max(fabs(_maxValue), fabs(_minValue));
-		Row in(info_.x()-mst, info_.r()-mst);
 
-		Channel dispLchan = dispChans[0];
-		Channel dispRchan = dispChans[1];
-
-		if (!intersect(in.writable_channels(), dispLchan))
-			dispLchan = Chan_Black;
-		if (!intersect(in.writable_channels(), dispRchan))
-			dispRchan = Chan_Black;
-
-		const float* dispL = in[dispLchan];
-		const float* dispR = in[dispRchan];
+		const float* dispLx = in[dispChans[0]];
+//		const float* dispLy = in[dispChans[1]];
+		const float* dispRx = in[dispChans[2]];
+//		const float* dispRy = in[dispChans[3]];
+		std::cout << "in  row: " << in.getLeft() << " " << in.getRight() << std::endl;
 		foreach(z, channels){
 			out.erase(z);
-			float* TO = out.writable(z);
-			const float* FROM = in[z];
-			int X;
-			for (X=x; X < r; X++){
-				int lval = (int)dispL[X];
-				float rval = dispR[X];
-				TO[X + lval] = FROM[X];
+			float* to = out.writable(z);
+			const float* from = in[z];
+			for (int X=x; X<r; X++){
+				int lval = int(dispLx[X] + .5);
+				int rval = int(dispRx[X] + .5);
+//				std::cout << "in  row: " << in.getLeft() << " " << in.getRight() << std::endl;
+//				std::cout << "out row: " << out.getLeft() << " " << out.getRight() << std::endl;
+//				std::cout << "X: " << X;
+//				std::cout << " lval: " << lval;
+//				std::cout <<" To: " << X + lval << std::endl;
+//				std::cout << "From: " << from[X];
+//				std::cout << " To: " << to[X + lval] << std::endl;
 
+//				to[X + lval] = from[X];
+				to[X] = from[X];
 			}
 		}
-*/
 	}
 
 };

@@ -14,7 +14,7 @@ LINKFLAGS ?= -L$(NDKDIR)
 LIBS ?= -lDDImage
 LINKFLAGS += -shared
 VPATH = src
-OBJS = DrivenDilate.so DisparityDistort.so
+OBJS = DrivenDilate.so Ramp2.so
 
 BUILDDIR = ./build
 INSTALLDIR = ~/.nuke

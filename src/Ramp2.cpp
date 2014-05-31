@@ -47,8 +47,19 @@ static const char* const HELP="A basic gradient ramp with two points and two col
 using namespace DD::Image;
 using namespace std;
 
+static const CurveDescription defaults[] = {
+  { "master", "y C 0 1" },
+  { "red",    "y C 0 1" },
+  { "green",  "y C 0 1" },
+  { "blue",   "y C 0 1" },
+  { "alpha",  "y C 0 1" },
+  { 0 }
+};
+
 class Ramp2 : public Iop
 {
+    LookupCurves lut;
+    bool enableLut;
     Vector2 p0;
     Vector2 p1;
     float low_col[4];
@@ -67,7 +78,7 @@ public:
     static const Description desc;
     const char* displayname() const { return "Ramp2"; }
 
-    Ramp2(Node* node) : Iop(node)
+    Ramp2(Node* node) : Iop(node), lut(defaults)
     {
         inputs(0);
         ca = cos(90.0 * (3.14/180));
@@ -132,11 +143,27 @@ public:
                     float pixcol = (low_col[z] * (c2 - c) + hi_col[z] * (c - c1))/(c2 - c1);
 
                     out[x] = clamp(pixcol, min(low_col[z], hi_col[z]), max(low_col[z], hi_col[z]));
+                    if (enableLut == true){
+                        if (low_col[z] > hi_col[z]){
+                            // invert colors, run lut, then revert
+                            float o = (out[x]*-1)+1;
+                            o = lookup(z, o);
+                            out[x] = (o*-1)+1;
+                        } else {
+                            out[x] = lookup(z, out[x]);
+                        }
+                    }
                 }
                 continue;
             }
         }
-    }
+    };
+
+    float lookup(int z, float value){
+        value = float(lut.getValue(0, value));
+        value = float(lut.getValue(z + 1, value));
+        return value;
+    };
 
     void knobs(Knob_Callback f)
     {
@@ -153,6 +180,13 @@ public:
         XY_knob(f, &p1[0], "p1");
         Tooltip(f, "Position of p1");
         Newline(f);
+        Tab_knob(f, "Lut");
+        BeginClosedGroup(f, "lutGroup", "lut");
+        LookupCurves_knob(f, &lut, "lut");
+        Newline(f);
+        Bool_knob(f, &enableLut, "enable", "Enable");
+        Tooltip(f, "Disables the lut");
+        EndGroup(f);
     }
 
     void build_handles(ViewerContext* ctx)

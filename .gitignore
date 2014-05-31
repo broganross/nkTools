@@ -1,9 +1,7 @@
 /nkTools.sublime-project
 /nkTools.sublime-workspace
-/build/.init.py.swp
 /.settings/org.eclipse.ltk.core.refactoring.prefs
 /.pydevproject
-/DrivenDilate.os
 /.settings/language.settings.xml
 /.project
 /.cproject
